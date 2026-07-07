@@ -6,6 +6,7 @@ const state = {
   factsBySchool: new Map(),
   reviewsBySchool: new Map(),
   addressBySchool: new Map(),
+  deepdiveBySchool: new Map(),
   currentSchool: null,
   sentimentFilter: "",
   reportCache: new Map(),
@@ -74,6 +75,10 @@ function indexData() {
   for (const r of d.reviews) {
     if (!state.reviewsBySchool.has(r.school_id)) state.reviewsBySchool.set(r.school_id, []);
     state.reviewsBySchool.get(r.school_id).push(r);
+  }
+  for (const q of d.deepdive || []) {
+    if (!state.deepdiveBySchool.has(q.school_id)) state.deepdiveBySchool.set(q.school_id, []);
+    state.deepdiveBySchool.get(q.school_id).push(q);
   }
 }
 
@@ -209,6 +214,9 @@ function schoolCardHtml(s) {
   const revBadge = reviews.length
     ? `<span class="badge review-badge">口コミ ${reviews.length}件<span class="sentiment-dots">${sentimentDots(reviews)}</span></span>`
     : '<span class="badge no-review">口コミ未収集</span>';
+  const deepdiveBadge = state.deepdiveBySchool.has(s.school_id)
+    ? '<span class="badge deepdive-badge">🔍 深掘り中</span>'
+    : "";
   const chips = [
     s.ownership && s.ownership !== "未確認" ? `<span class="badge ownership">${esc(s.ownership)}</span>` : "",
     s.school_form && s.school_form !== "未確認" ? `<span class="badge">${esc(s.school_form)}</span>` : "",
@@ -220,7 +228,7 @@ function schoolCardHtml(s) {
   return `
     <div class="school-card" data-sid="${esc(s.school_id)}">
       <h3>${esc(s.school_name)}</h3>
-      <div class="badge-row">${revBadge}${chips}</div>
+      <div class="badge-row">${revBadge}${deepdiveBadge}${chips}</div>
       <div class="addr">${addr ? esc(addr) : "住所未確認"}</div>
     </div>`;
 }
@@ -247,7 +255,11 @@ function reviewCardHtml(r, { withSchoolLink } = {}) {
         <span class="badge drank">雰囲気情報</span>
       </div>
       <div class="review-summary">${esc(r.summary)}</div>
-      ${r.anonymous_episode_summary ? `<div class="review-episode">${esc(r.anonymous_episode_summary)}</div>` : ""}
+      ${r.anonymous_episode_summary ? `
+      <div class="review-episode">
+        <span class="episode-label">生活実感メモ</span>
+        <span>${esc(r.anonymous_episode_summary)}</span>
+      </div>` : ""}
       ${tags.length ? `<div class="tag-row">${tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : ""}
       <div class="review-meta">
         ${esc(r.platform)} ／ 投稿: ${esc(posted || "不明")} ／ 収集: ${esc(r.collected_at || "不明")} ／ 出典: ${link}
@@ -272,8 +284,15 @@ function renderReviewSearch() {
     return true;
   });
 
+  const counts = { 肯定的: 0, 混在: 0, 否定的: 0 };
+  for (const r of list) if (r.sentiment in counts) counts[r.sentiment]++;
+  const breakdown = Object.entries(counts)
+    .filter(([, n]) => n > 0)
+    .map(([s, n]) => `${s}${n}`)
+    .join("・");
   $("reviewCount").textContent =
-    `${list.length}件の口コミ要約（全${state.data.reviews.length}件・${state.reviewsBySchool.size}校分）`;
+    `${list.length}件の口コミ要約（全${state.data.reviews.length}件・${state.reviewsBySchool.size}校分）` +
+    (breakdown ? ` — ${breakdown}` : "");
   $("reviewList").innerHTML = list.length
     ? list.map((r) => reviewCardHtml(r, { withSchoolLink: true })).join("")
     : '<p class="empty-note">条件に合う口コミがありません。</p>';
@@ -373,6 +392,31 @@ function openSchool(sid) {
   selectTab("reviews");
 }
 
+function sentimentSummaryHtml(reviews) {
+  const counts = { 肯定的: 0, 混在: 0, 否定的: 0 };
+  for (const r of reviews) if (r.sentiment in counts) counts[r.sentiment]++;
+  const chips = Object.entries(counts)
+    .filter(([, n]) => n > 0)
+    .map(([s, n]) => `<span class="stat-chip ${sentimentClass(s)}"><span class="stat-dot">●</span>${s} ${n}件</span>`)
+    .join("");
+  return `<div class="review-stats"><strong>口コミ ${reviews.length}件</strong>${chips}</div>`;
+}
+
+function deepdiveHtml(sid) {
+  const rows = state.deepdiveBySchool.get(sid) || [];
+  if (!rows.length) return "";
+  const chips = rows
+    .map((q) => `<span class="lens-chip">${esc(q.selection_lens)} <b>${esc(q.public_candidate_count)}</b></span>`)
+    .join("");
+  return `
+    <div class="deepdive-box">
+      <div class="deepdive-title">🔍 口コミ深掘り調査が進行中</div>
+      <div class="lens-row">${chips}</div>
+      <div class="deepdive-caption">学校選び5観点で公開口コミの候補を集めた件数です（キーワードによる粗分類の段階）。
+      読み込んだうえでの観点別の要約は、これから順次追加されます。</div>
+    </div>`;
+}
+
 function renderDetailReviews(sid) {
   const reviews = state.reviewsBySchool.get(sid) || [];
   const head = `
@@ -380,9 +424,10 @@ function renderDetailReviews(sid) {
       <strong>口コミ・SNSで見える雰囲気</strong> — あくまで雰囲気の参考情報です。公式事実ではなく、
       住所・倍率・学費・進学実績・入試条件の根拠には使えません。
     </div>`;
-  $("tabReviews").innerHTML = reviews.length
-    ? head + `<div class="review-list">${reviews.map((r) => reviewCardHtml(r)).join("")}</div>`
-    : head + '<p class="empty-note">この学校の口コミ・SNS要約はまだ収集されていません（review_queue待ち）。</p>';
+  const body = reviews.length
+    ? sentimentSummaryHtml(reviews) + `<div class="review-list">${reviews.map((r) => reviewCardHtml(r)).join("")}</div>`
+    : '<p class="empty-note">この学校の口コミ・SNS要約はまだ収集されていません（review_queue待ち）。</p>';
+  $("tabReviews").innerHTML = head + body + deepdiveHtml(sid);
 }
 
 function renderDetailFacts(sid) {
