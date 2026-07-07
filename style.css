@@ -208,6 +208,12 @@ main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 60px; }
 .fact-source a { color: var(--accent); }
 .fact-note { font-size: 11.5px; color: var(--sub); margin-top: 2px; }
 
+/* 偏差値・進学実績の構造化テーブル */
+.mini-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.mini-table th, .mini-table td { text-align: left; padding: 7px 12px; border-top: 1px solid var(--line); white-space: nowrap; }
+.mini-table thead th { border-top: none; background: #fafbfc; font-weight: 600; color: var(--sub); font-size: 12px; }
+.mini-table td.num { font-variant-numeric: tabular-nums; text-align: right; }
+
 .unverified-box {
   background: var(--unverified-bg); border: 1px dashed var(--unverified);
   border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; font-size: 13.5px;

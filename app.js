@@ -7,6 +7,10 @@ const state = {
   reviewsBySchool: new Map(),
   addressBySchool: new Map(),
   deepdiveBySchool: new Map(),
+  deviationScoresBySchool: new Map(),
+  deviationStatusBySchool: new Map(),
+  progressionResultsBySchool: new Map(),
+  progressionStatusBySchool: new Map(),
   currentSchool: null,
   sentimentFilter: "",
   reportCache: new Map(),
@@ -80,6 +84,16 @@ function indexData() {
     if (!state.deepdiveBySchool.has(q.school_id)) state.deepdiveBySchool.set(q.school_id, []);
     state.deepdiveBySchool.get(q.school_id).push(q);
   }
+  for (const s of d.deviation_scores || []) {
+    if (!state.deviationScoresBySchool.has(s.school_id)) state.deviationScoresBySchool.set(s.school_id, []);
+    state.deviationScoresBySchool.get(s.school_id).push(s);
+  }
+  for (const q of d.deviation_queue || []) state.deviationStatusBySchool.set(q.school_id, q.status);
+  for (const r of d.progression_results || []) {
+    if (!state.progressionResultsBySchool.has(r.school_id)) state.progressionResultsBySchool.set(r.school_id, []);
+    state.progressionResultsBySchool.get(r.school_id).push(r);
+  }
+  for (const q of d.progression_queue || []) state.progressionStatusBySchool.set(q.school_id, q.status);
 }
 
 /* ---------- チェック結果バナー ---------- */
@@ -430,6 +444,62 @@ function renderDetailReviews(sid) {
   $("tabReviews").innerHTML = head + body + deepdiveHtml(sid);
 }
 
+function citationHtml(sourceId) {
+  const src = state.data.sources[sourceId];
+  if (!src) return "―";
+  return src.url
+    ? `<a href="${esc(src.url)}" target="_blank" rel="noopener noreferrer">${esc(src.publisher || src.title)}</a>`
+    : esc(src.publisher || src.title || "―");
+}
+
+function deviationSectionHtml(sid) {
+  const rows = state.deviationScoresBySchool.get(sid) || [];
+  const status = state.deviationStatusBySchool.get(sid);
+  if (!rows.length && !status) return "";
+  const body = rows.length
+    ? `<div class="fact-table-wrap"><table class="mini-table">
+        <thead><tr><th>提供元</th><th>性別</th><th>種別</th><th>偏差値</th><th>年度</th><th>出典</th></tr></thead>
+        <tbody>${rows.map((r) => `
+          <tr>
+            <td>${esc(r.provider_name)}</td><td>${esc(r.gender)}</td><td>${esc(r.score_kind)}</td>
+            <td class="num">${esc(r.score_value)}</td><td>${esc(r.source_year_label)}</td>
+            <td>${citationHtml(r.source_id)}</td>
+          </tr>`).join("")}</tbody>
+      </table></div>`
+    : '<p class="empty-note" style="padding:14px 16px">この学校の偏差値はまだ確認できていません。</p>';
+  return `
+    <div class="fact-group">
+      <h3>偏差値（提供元別）</h3>
+      ${body}
+      ${status ? `<div class="fact-note" style="padding:8px 16px 12px">確認状況: ${esc(status)}</div>` : ""}
+    </div>`;
+}
+
+function progressionSectionHtml(sid) {
+  const rows = state.progressionResultsBySchool.get(sid) || [];
+  const status = state.progressionStatusBySchool.get(sid);
+  if (!rows.length && !status) return "";
+  const sorted = rows.slice().sort((a, b) => b.result_year.localeCompare(a.result_year));
+  const body = sorted.length
+    ? `<div class="fact-table-wrap"><table class="mini-table">
+        <thead><tr><th>年度</th><th>区分</th><th>大学等</th><th>現役+浪人</th><th>現役</th><th>出典</th></tr></thead>
+        <tbody>${sorted.map((r) => `
+          <tr>
+            <td>${esc(r.result_year)}</td><td>${esc(r.category)}</td><td>${esc(r.university_name || "―")}</td>
+            <td class="num">${esc(r.count_total || "―")}</td><td class="num">${esc(r.count_active || "―")}</td>
+            <td>${citationHtml(r.source_id)}</td>
+          </tr>`).join("")}</tbody>
+      </table></div>`
+    : '<p class="empty-note" style="padding:14px 16px">この学校の進学実績はまだ確認できていません。</p>';
+  return `
+    <div class="fact-group">
+      <h3>進学実績（大学合格者数）</h3>
+      ${body}
+      <div class="fact-note" style="padding:8px 16px 2px">合格者数であり、進学者数ではありません（延べ人数）。</div>
+      ${status ? `<div class="fact-note" style="padding:2px 16px 12px">確認状況: ${esc(status)}</div>` : ""}
+    </div>`;
+}
+
 function renderDetailFacts(sid) {
   const facts = state.factsBySchool.get(sid) || [];
   if (!facts.length) {
@@ -443,7 +513,7 @@ function renderDetailFacts(sid) {
         <ul>${unverified.map((f) => `<li>${esc(f.field)}</li>`).join("")}</ul></div>`
     : "";
   const groups = groupFacts(facts);
-  $("tabFacts").innerHTML = unverifiedBox + groups
+  const groupsHtml = groups
     .map(([name, list]) => `
       <div class="fact-group">
         <h3>${esc(name)}</h3>
@@ -452,6 +522,8 @@ function renderDetailFacts(sid) {
         </tbody></table></div>
       </div>`)
     .join("");
+  $("tabFacts").innerHTML =
+    unverifiedBox + groupsHtml + deviationSectionHtml(sid) + progressionSectionHtml(sid);
 }
 
 function renderDetailSources(sid) {
