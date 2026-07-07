@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>学校情報・口コミ検索</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="checkBanner" class="check-banner" hidden></div>
+
+<header class="app-header">
+  <div class="header-inner">
+    <h1>学校情報・口コミ検索</h1>
+    <p class="subtitle">保存済みデータのみ・読み取り専用</p>
+    <nav class="mode-nav">
+      <button id="modeSchools" class="mode-btn active">学校をさがす</button>
+      <button id="modeReviews" class="mode-btn">口コミ横断検索</button>
+      <button id="modeSystem" class="mode-btn">制度・全体データ</button>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <!-- 学校検索 -->
+  <section id="viewSchools" class="view">
+    <div class="filter-bar">
+      <input id="schoolQuery" type="search" placeholder="学校名で検索（例: 小石川）" autocomplete="off">
+      <select id="filterOwnership"><option value="">設置者: すべて</option></select>
+      <select id="filterGender"><option value="">男女区分: すべて</option></select>
+      <select id="filterForm"><option value="">学校段階: すべて</option></select>
+      <select id="filterMunicipality"><option value="">自治体: すべて</option></select>
+      <label class="check-label"><input id="filterHasReviews" type="checkbox"> 口コミあり</label>
+      <select id="sortSchools">
+        <option value="name">並び: 名前順</option>
+        <option value="reviews">並び: 口コミ件数順</option>
+      </select>
+    </div>
+    <p id="schoolCount" class="result-count"></p>
+    <div id="schoolList" class="school-list"></div>
+  </section>
+
+  <!-- 口コミ横断検索 -->
+  <section id="viewReviews" class="view" hidden>
+    <div class="review-intro notice-d">
+      口コミ・SNSは<strong>雰囲気の参考情報</strong>です。公式事実ではなく、住所・倍率・学費・進学実績・入試条件の根拠には使えません。
+    </div>
+    <div class="filter-bar">
+      <input id="reviewQuery" type="search" placeholder="口コミを検索（例: 行事 / 先生 / 課題 / 部活）" autocomplete="off">
+      <div id="sentimentChips" class="chip-row"></div>
+      <select id="filterReviewCategory"><option value="">カテゴリ: すべて</option></select>
+    </div>
+    <p id="reviewCount" class="result-count"></p>
+    <div id="reviewList" class="review-list"></div>
+  </section>
+
+  <!-- 制度・全体データ -->
+  <section id="viewSystem" class="view" hidden>
+    <h2 class="section-title">制度・全体データ（学校個別ではない事実）</h2>
+    <div id="systemFacts"></div>
+  </section>
+
+  <!-- 学校詳細 -->
+  <section id="viewDetail" class="view" hidden>
+    <button id="backBtn" class="back-btn">← 一覧にもどる</button>
+    <div id="detailHead"></div>
+    <nav class="tab-nav" id="detailTabs">
+      <button data-tab="reviews" class="tab-btn active">口コミ・SNS</button>
+      <button data-tab="facts" class="tab-btn">基本情報・事実</button>
+      <button data-tab="sources" class="tab-btn">出典一覧</button>
+      <button data-tab="report" class="tab-btn">レポート表示</button>
+    </nav>
+    <div id="tabReviews" class="tab-body"></div>
+    <div id="tabFacts" class="tab-body" hidden></div>
+    <div id="tabSources" class="tab-body" hidden></div>
+    <div id="tabReport" class="tab-body" hidden></div>
+  </section>
+</main>
+
+<footer class="app-footer">
+  <p>データ元: 学校情報フォルダ（iCloud）/ このアプリはデータを一切書き換えません。表示補助であり、事実確認はCSVと出典を優先してください。</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
