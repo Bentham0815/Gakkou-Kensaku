@@ -99,10 +99,16 @@ main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 60px; }
 .badge.no-review { background: var(--unverified-bg); color: var(--unverified); }
 .badge.deepdive-badge { background: var(--accent-soft); color: var(--accent); }
 .school-card .addr { font-size: 12.5px; color: var(--sub); }
-.sentiment-dots { margin-left: 4px; letter-spacing: 1px; }
-.dot-pos { color: var(--pos); }
-.dot-mix { color: var(--mix); }
-.dot-neg { color: var(--neg); }
+
+/* 感情ごとの件数チップ（色ドット＋ラベル＋件数） */
+.senti-count {
+  font-size: 11.5px; padding: 2px 8px; border-radius: 999px;
+  white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.senti-count .senti-dot { font-size: 9px; margin-right: 3px; vertical-align: 1px; }
+.senti-count.pos { background: var(--pos-bg); color: var(--pos); }
+.senti-count.mix { background: var(--mix-bg); color: var(--mix); }
+.senti-count.neg { background: var(--neg-bg); color: var(--neg); }
 
 /* ===== 口コミカード ===== */
 .review-intro { margin-bottom: 14px; }

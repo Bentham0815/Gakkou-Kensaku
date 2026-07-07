@@ -181,10 +181,19 @@ function sentimentClass(s) {
   return "mix";
 }
 
-function sentimentDots(reviews) {
-  const order = { 肯定的: "dot-pos", 混在: "dot-mix", 否定的: "dot-neg" };
-  return reviews
-    .map((r) => `<span class="${order[r.sentiment] || "dot-mix"}">●</span>`)
+// 感情ごとの件数を「色ドット＋ラベル＋件数」で集計表示する（●を1件ずつ描かない）
+function sentimentCountBadges(reviews) {
+  const defs = [
+    ["肯定的", "肯定", "pos"],
+    ["混在", "混在", "mix"],
+    ["否定的", "否定", "neg"],
+  ];
+  const counts = { 肯定的: 0, 混在: 0, 否定的: 0 };
+  for (const r of reviews) if (r.sentiment in counts) counts[r.sentiment]++;
+  return defs
+    .filter(([key]) => counts[key] > 0)
+    .map(([key, label, cls]) =>
+      `<span class="senti-count ${cls}"><span class="senti-dot">●</span>${label} ${counts[key]}</span>`)
     .join("");
 }
 
@@ -226,7 +235,7 @@ function schoolCardHtml(s) {
   const reviews = state.reviewsBySchool.get(s.school_id) || [];
   const addr = state.addressBySchool.get(s.school_id);
   const revBadge = reviews.length
-    ? `<span class="badge review-badge">口コミ ${reviews.length}件<span class="sentiment-dots">${sentimentDots(reviews)}</span></span>`
+    ? `<span class="badge review-badge">口コミ ${reviews.length}件</span>${sentimentCountBadges(reviews)}`
     : '<span class="badge no-review">口コミ未収集</span>';
   const deepdiveBadge = state.deepdiveBySchool.has(s.school_id)
     ? '<span class="badge deepdive-badge">🔍 深掘り中</span>'
