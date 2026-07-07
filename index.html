@@ -31,10 +31,19 @@
       <select id="filterGender"><option value="">男女区分: すべて</option></select>
       <select id="filterForm"><option value="">学校段階: すべて</option></select>
       <select id="filterMunicipality"><option value="">自治体: すべて</option></select>
+      <select id="filterDeviation">
+        <option value="">偏差値: すべて</option>
+        <option value="has">偏差値データあり</option>
+        <option value="70">70以上</option>
+        <option value="65">65以上</option>
+        <option value="60">60以上</option>
+        <option value="0">60未満</option>
+      </select>
       <label class="check-label"><input id="filterHasReviews" type="checkbox"> 口コミあり</label>
       <select id="sortSchools">
         <option value="name">並び: 名前順</option>
         <option value="reviews">並び: 口コミ件数順</option>
+        <option value="deviation">並び: 偏差値が高い順</option>
       </select>
     </div>
     <p id="schoolCount" class="result-count"></p>

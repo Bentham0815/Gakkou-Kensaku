@@ -98,6 +98,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 60px; }
 .badge.review-badge { background: #fdeee2; color: #b4560a; font-weight: 700; }
 .badge.no-review { background: var(--unverified-bg); color: var(--unverified); }
 .badge.deepdive-badge { background: var(--accent-soft); color: var(--accent); }
+.badge.deviation-badge { background: #e6f0ea; color: var(--pos); font-weight: 700; }
 .school-card .addr { font-size: 12.5px; color: var(--sub); }
 
 /* 感情ごとの件数チップ（色ドット＋ラベル＋件数） */

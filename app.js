@@ -8,6 +8,7 @@ const state = {
   addressBySchool: new Map(),
   deepdiveBySchool: new Map(),
   deviationScoresBySchool: new Map(),
+  deviationMaxBySchool: new Map(),
   deviationStatusBySchool: new Map(),
   progressionResultsBySchool: new Map(),
   progressionStatusBySchool: new Map(),
@@ -88,6 +89,11 @@ function indexData() {
     if (!state.deviationScoresBySchool.has(s.school_id)) state.deviationScoresBySchool.set(s.school_id, []);
     state.deviationScoresBySchool.get(s.school_id).push(s);
   }
+  // 学校ごとの偏差値の代表値（各校の最大＝合格率80%ライン）を並び替え・絞り込み用に持つ
+  for (const [sid, rows] of state.deviationScoresBySchool) {
+    const nums = rows.map((r) => parseFloat(r.score_value)).filter((n) => !isNaN(n));
+    if (nums.length) state.deviationMaxBySchool.set(sid, Math.max(...nums));
+  }
   for (const q of d.deviation_queue || []) state.deviationStatusBySchool.set(q.school_id, q.status);
   for (const r of d.progression_results || []) {
     if (!state.progressionResultsBySchool.has(r.school_id)) state.progressionResultsBySchool.set(r.school_id, []);
@@ -152,9 +158,27 @@ function buildFilters() {
   const uniq = (key) =>
     [...new Set(schools.map((s) => s[key]).filter((v) => v && v !== "未確認"))].sort();
   fillSelect("filterOwnership", uniq("ownership"));
-  fillSelect("filterGender", uniq("gender"));
   fillSelect("filterForm", uniq("school_form"));
   fillSelect("filterMunicipality", uniq("municipality"));
+
+  // 男女区分は常に男子・女子・共学を選べるようにし、記録がない校を探せるよう未確認も残す。
+  // データに無い区分（例: 現状の男子）は「(データなし)」と明示する。
+  const genderInData = new Set(schools.map((s) => s.gender));
+  const genderOptions = ["共学", "男子", "女子", "別学"].filter(
+    (g) => genderInData.has(g) || g === "男子" || g === "共学" || g === "女子");
+  const genderSel = $("filterGender");
+  for (const g of genderOptions) {
+    const opt = document.createElement("option");
+    opt.value = g;
+    opt.textContent = genderInData.has(g) ? g : `${g}（データなし）`;
+    genderSel.appendChild(opt);
+  }
+  if (genderInData.has("未確認")) {
+    const opt = document.createElement("option");
+    opt.value = "未確認";
+    opt.textContent = "男女区分が未記録の学校";
+    genderSel.appendChild(opt);
+  }
 
   const cats = [...new Set(state.data.reviews.map((r) => r.category).filter(Boolean))].sort();
   fillSelect("filterReviewCategory", cats);
@@ -203,6 +227,7 @@ function renderSchoolList() {
   const gen = $("filterGender").value;
   const form = $("filterForm").value;
   const muni = $("filterMunicipality").value;
+  const dev = $("filterDeviation").value;
   const hasRev = $("filterHasReviews").checked;
   const sort = $("sortSchools").value;
 
@@ -213,6 +238,16 @@ function renderSchoolList() {
     if (form && s.school_form !== form) return false;
     if (muni && s.municipality !== muni) return false;
     if (hasRev && !state.reviewsBySchool.has(s.school_id)) return false;
+    if (dev) {
+      const v = state.deviationMaxBySchool.get(s.school_id);
+      if (dev === "has") {
+        if (v === undefined) return false;
+      } else if (dev === "0") {
+        if (v === undefined || v >= 60) return false;
+      } else {
+        if (v === undefined || v < parseFloat(dev)) return false;
+      }
+    }
     return true;
   });
 
@@ -220,6 +255,16 @@ function renderSchoolList() {
     list = list.slice().sort((a, b) =>
       (state.reviewsBySchool.get(b.school_id)?.length || 0) -
       (state.reviewsBySchool.get(a.school_id)?.length || 0));
+  } else if (sort === "deviation") {
+    // 偏差値あり→高い順、偏差値なしは後ろにまとめる
+    list = list.slice().sort((a, b) => {
+      const va = state.deviationMaxBySchool.get(a.school_id);
+      const vb = state.deviationMaxBySchool.get(b.school_id);
+      if (va === undefined && vb === undefined) return (a.school_name || "").localeCompare(b.school_name || "", "ja");
+      if (va === undefined) return 1;
+      if (vb === undefined) return -1;
+      return vb - va;
+    });
   } else {
     list = list.slice().sort((a, b) => (a.school_name || "").localeCompare(b.school_name || "", "ja"));
   }
@@ -240,6 +285,10 @@ function schoolCardHtml(s) {
   const deepdiveBadge = state.deepdiveBySchool.has(s.school_id)
     ? '<span class="badge deepdive-badge">🔍 深掘り中</span>'
     : "";
+  const devMax = state.deviationMaxBySchool.get(s.school_id);
+  const devBadge = devMax !== undefined
+    ? `<span class="badge deviation-badge">偏差値 〜${devMax}</span>`
+    : "";
   const chips = [
     s.ownership && s.ownership !== "未確認" ? `<span class="badge ownership">${esc(s.ownership)}</span>` : "",
     s.school_form && s.school_form !== "未確認" ? `<span class="badge">${esc(s.school_form)}</span>` : "",
@@ -251,7 +300,7 @@ function schoolCardHtml(s) {
   return `
     <div class="school-card" data-sid="${esc(s.school_id)}">
       <h3>${esc(s.school_name)}</h3>
-      <div class="badge-row">${revBadge}${deepdiveBadge}${chips}</div>
+      <div class="badge-row">${revBadge}${devBadge}${deepdiveBadge}${chips}</div>
       <div class="addr">${addr ? esc(addr) : "住所未確認"}</div>
     </div>`;
 }
@@ -739,7 +788,7 @@ function bindEvents() {
   $("modeSystem").addEventListener("click", () => showView("viewSystem"));
 
   for (const id of ["schoolQuery"]) $(id).addEventListener("input", renderSchoolList);
-  for (const id of ["filterOwnership", "filterGender", "filterForm", "filterMunicipality", "sortSchools"])
+  for (const id of ["filterOwnership", "filterGender", "filterForm", "filterMunicipality", "filterDeviation", "sortSchools"])
     $(id).addEventListener("change", renderSchoolList);
   $("filterHasReviews").addEventListener("change", renderSchoolList);
 
