@@ -47,7 +47,7 @@ body {
 .header-inner { max-width: 1080px; margin: 0 auto; padding: 18px 16px 0; }
 .app-header h1 { font-size: 22px; }
 .subtitle { color: var(--sub); font-size: 13px; margin-top: 2px; }
-.mode-nav { display: flex; gap: 4px; margin-top: 14px; }
+.mode-nav { display: flex; gap: 4px; margin-top: 14px; flex-wrap: wrap; }
 .mode-btn {
   border: none; background: none; padding: 10px 16px; font-size: 14px;
   cursor: pointer; color: var(--sub); border-bottom: 3px solid transparent; font-weight: 600;
@@ -99,6 +99,8 @@ main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 60px; }
 .badge.no-review { background: var(--unverified-bg); color: var(--unverified); }
 .badge.deepdive-badge { background: var(--accent-soft); color: var(--accent); }
 .badge.deviation-badge { background: #e6f0ea; color: var(--pos); font-weight: 700; }
+.badge.test-badge { background: #e6eef2; color: #25626f; font-weight: 700; }
+.badge.test-queue-badge { background: #edf0d7; color: #66720f; font-weight: 700; }
 .school-card .addr { font-size: 12.5px; color: var(--sub); }
 
 /* 感情ごとの件数チップ（色ドット＋ラベル＋件数） */
@@ -173,6 +175,46 @@ main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 60px; }
 .review-meta { font-size: 12px; color: var(--sub); margin-top: 8px; }
 .review-meta a { color: var(--accent); }
 
+/* ===== テスト情報 ===== */
+.test-search-box { margin-bottom: 14px; }
+.matched-schools {
+  display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px;
+}
+.matched-school {
+  border: 1px solid var(--line); background: var(--card); color: var(--accent);
+  border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.matched-school:hover { border-color: var(--accent); background: var(--accent-soft); }
+.test-link-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;
+}
+.test-link-grid a {
+  display: block; background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; text-decoration: none; color: var(--ink);
+}
+.test-link-grid a:hover { border-color: var(--accent); box-shadow: 0 3px 10px rgba(30,40,70,.08); }
+.test-link-grid span { display: block; font-weight: 700; font-size: 13px; color: var(--accent); }
+.test-link-grid small { display: block; margin-top: 2px; color: var(--sub); line-height: 1.45; }
+.test-list, .candidate-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.test-card, .candidate-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  padding: 13px 16px;
+}
+.test-card h3 { font-size: 15px; margin-bottom: 3px; }
+.test-meta { color: var(--sub); font-size: 12.5px; margin-bottom: 8px; }
+.test-summary-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 8px;
+}
+.test-summary-item {
+  background: #f7f8fa; border: 1px solid #eceff4; border-radius: 8px; padding: 8px 10px;
+}
+.test-summary-item span { display: block; color: var(--sub); font-size: 11px; font-weight: 700; margin-bottom: 2px; }
+.test-summary-item p { font-size: 13px; line-height: 1.55; }
+.candidate-title { font-size: 14px; font-weight: 700; }
+.candidate-title a { color: var(--accent); word-break: break-all; }
+.test-section-title { margin-top: 18px; }
+.empty-note.compact { padding: 12px 8px; text-align: left; }
+
 /* ===== 詳細 ===== */
 .back-btn {
   border: 1px solid var(--line); background: var(--card); border-radius: 8px;
@@ -239,6 +281,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 60px; }
 .rank-pill.B { background: var(--accent-soft); color: var(--accent); }
 .rank-pill.C { background: var(--mix-bg); color: var(--mix); }
 .rank-pill.D { background: #efe5f7; color: #6d3f9e; }
+.rank-pill.U { background: var(--unverified-bg); color: var(--unverified); }
 
 /* ===== レポート(markdown) ===== */
 .report-select { margin-bottom: 12px; display: flex; gap: 6px; flex-wrap: wrap; }

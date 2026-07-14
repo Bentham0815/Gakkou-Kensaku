@@ -12,6 +12,9 @@ const state = {
   deviationStatusBySchool: new Map(),
   progressionResultsBySchool: new Map(),
   progressionStatusBySchool: new Map(),
+  testInfoBySchool: new Map(),
+  testQueueBySchool: new Map(),
+  testCandidatesBySchool: new Map(),
   currentSchool: null,
   sentimentFilter: "",
   reportCache: new Map(),
@@ -61,6 +64,7 @@ async function init() {
   renderBanner();
   buildFilters();
   renderSchoolList();
+  renderTestSearch();
   renderSystemFacts();
   bindEvents();
 }
@@ -100,6 +104,18 @@ function indexData() {
     state.progressionResultsBySchool.get(r.school_id).push(r);
   }
   for (const q of d.progression_queue || []) state.progressionStatusBySchool.set(q.school_id, q.status);
+  for (const row of d.test_info || []) {
+    if (!state.testInfoBySchool.has(row.school_id)) state.testInfoBySchool.set(row.school_id, []);
+    state.testInfoBySchool.get(row.school_id).push(row);
+  }
+  for (const row of d.test_research_queue || []) {
+    if (!state.testQueueBySchool.has(row.school_id)) state.testQueueBySchool.set(row.school_id, []);
+    state.testQueueBySchool.get(row.school_id).push(row);
+  }
+  for (const row of d.test_source_candidates || []) {
+    if (!state.testCandidatesBySchool.has(row.school_id)) state.testCandidatesBySchool.set(row.school_id, []);
+    state.testCandidatesBySchool.get(row.school_id).push(row);
+  }
 }
 
 /* ---------- チェック結果バナー ---------- */
@@ -278,6 +294,9 @@ function renderSchoolList() {
 
 function schoolCardHtml(s) {
   const reviews = state.reviewsBySchool.get(s.school_id) || [];
+  const tests = state.testInfoBySchool.get(s.school_id) || [];
+  const testQueue = state.testQueueBySchool.get(s.school_id) || [];
+  const testCandidates = state.testCandidatesBySchool.get(s.school_id) || [];
   const addr = state.addressBySchool.get(s.school_id);
   const revBadge = reviews.length
     ? `<span class="badge review-badge">口コミ ${reviews.length}件</span>${sentimentCountBadges(reviews)}`
@@ -289,6 +308,9 @@ function schoolCardHtml(s) {
   const devBadge = devMax !== undefined
     ? `<span class="badge deviation-badge">偏差値 〜${devMax}</span>`
     : "";
+  const testBadge = tests.length
+    ? `<span class="badge test-badge">テスト情報 ${tests.length}件</span>`
+    : (testQueue.length || testCandidates.length ? '<span class="badge test-queue-badge">テスト調査中</span>' : "");
   const chips = [
     s.ownership && s.ownership !== "未確認" ? `<span class="badge ownership">${esc(s.ownership)}</span>` : "",
     s.school_form && s.school_form !== "未確認" ? `<span class="badge">${esc(s.school_form)}</span>` : "",
@@ -300,7 +322,7 @@ function schoolCardHtml(s) {
   return `
     <div class="school-card" data-sid="${esc(s.school_id)}">
       <h3>${esc(s.school_name)}</h3>
-      <div class="badge-row">${revBadge}${devBadge}${deepdiveBadge}${chips}</div>
+      <div class="badge-row">${revBadge}${devBadge}${testBadge}${deepdiveBadge}${chips}</div>
       <div class="addr">${addr ? esc(addr) : "住所未確認"}</div>
     </div>`;
 }
@@ -368,6 +390,199 @@ function renderReviewSearch() {
   $("reviewList").innerHTML = list.length
     ? list.map((r) => reviewCardHtml(r, { withSchoolLink: true })).join("")
     : '<p class="empty-note">条件に合う口コミがありません。</p>';
+}
+
+/* ---------- テスト情報検索 ---------- */
+
+const TEST_CONF_LABELS = {
+  A: "公式確認",
+  B: "確認済み",
+  C: "複数参考",
+  D: "雰囲気のみ",
+};
+
+const CANDIDATE_TYPE_LABELS = {
+  official: "公式",
+  official_pdf: "公式PDF",
+  syllabus: "シラバス",
+  annual_schedule: "年間予定",
+  school_news: "学校発信",
+  cram_school: "塾・説明会",
+  review_site: "口コミ",
+  sns: "SNS",
+};
+
+function termsFromQuery(q) {
+  return q.split(/[\s　]+/).map((t) => t.trim()).filter(Boolean);
+}
+
+function rowMatchesTerms(row, terms) {
+  if (!terms.length) return true;
+  const hay = Object.values(row || {}).join(" ");
+  return terms.every((t) => hay.includes(t));
+}
+
+function testConfidenceBadge(value) {
+  const c = (value || "").toUpperCase();
+  const cls = ["A", "B", "C", "D"].includes(c) ? c : "U";
+  const label = TEST_CONF_LABELS[c] || "未確認";
+  return `<span class="conf ${cls}" title="信頼度${esc(c || "不明")}">${label}</span>`;
+}
+
+function sourceLineForTest(row) {
+  const src = state.data.sources[row.source_id];
+  const isXSource = src && /x\.com|twitter\.com/i.test(src.url || "");
+  if (src && src.url && !isXSource) {
+    return `出典: <a href="${esc(src.url)}" target="_blank" rel="noopener noreferrer">${esc(src.title || src.publisher)}</a>`;
+  }
+  if (src && isXSource) return `出典: ${esc(src.title || src.publisher || row.source_id)}（アカウント保護のためURL非表示）`;
+  if (src) return `出典: ${esc(src.publisher || src.title || row.source_id)}`;
+  if (row.source_title) return `出典: ${esc(row.source_title)}`;
+  if (row.source_id) return `出典ID: ${esc(row.source_id)}`;
+  return "出典: 未登録";
+}
+
+function testInfoCardHtml(row, { withSchoolLink } = {}) {
+  const schoolLink = withSchoolLink
+    ? `<button class="review-school-link" data-sid="${esc(row.school_id)}">${esc(row.school_name)}</button>`
+    : "";
+  const title = [row.test_kind, row.test_name].filter(Boolean).join(" / ") || "テスト情報";
+  const meta = [row.grade, row.term, row.subject, row.timing, row.frequency].filter(Boolean).join(" ／ ");
+  const summaries = [
+    ["範囲", row.scope_summary],
+    ["難度", row.difficulty_summary],
+    ["課題量", row.workload_summary],
+  ].filter(([, v]) => v);
+  return `
+    <div class="test-card">
+      <div class="review-top">
+        ${schoolLink}
+        ${testConfidenceBadge(row.confidence)}
+        ${row.evidence_type ? `<span class="badge">${esc(row.evidence_type)}</span>` : ""}
+      </div>
+      <h3>${esc(title)}</h3>
+      ${meta ? `<div class="test-meta">${esc(meta)}</div>` : ""}
+      ${summaries.length ? `<div class="test-summary-grid">
+        ${summaries.map(([label, value]) => `
+          <div class="test-summary-item"><span>${esc(label)}</span><p>${esc(value)}</p></div>`).join("")}
+      </div>` : '<p class="empty-note compact">要約はまだ登録されていません。</p>'}
+      <div class="review-meta">${sourceLineForTest(row)} ／ 収集: ${esc(row.collected_at || "不明")}</div>
+      ${row.notes ? `<div class="fact-note">メモ: ${esc(row.notes)}</div>` : ""}
+    </div>`;
+}
+
+function candidateRankBadge(rank) {
+  const c = (rank || "").toUpperCase();
+  const cls = ["A", "B", "C", "D"].includes(c) ? c : "U";
+  const label = TEST_CONF_LABELS[c] || "候補";
+  return `<span class="rank-pill ${cls}" title="候補ランク${esc(c || "不明")}">${label}</span>`;
+}
+
+function candidateCardHtml(row, { withSchoolLink } = {}) {
+  const schoolLink = withSchoolLink
+    ? `<button class="review-school-link" data-sid="${esc(row.school_id)}">${esc(row.school_name)}</button>`
+    : "";
+  const isXSource = /x\.com|twitter\.com/i.test(row.url || "");
+  const type = CANDIDATE_TYPE_LABELS[row.candidate_type] || row.candidate_type || "候補";
+  const title = row.url && !isXSource
+    ? `<a href="${esc(row.url)}" target="_blank" rel="noopener noreferrer">${esc(row.title || row.url)}</a>`
+    : `${esc(row.title || "無題の候補")}${isXSource ? "（アカウント保護のためURL非表示）" : ""}`;
+  return `
+    <div class="candidate-card">
+      <div class="review-top">
+        ${schoolLink}
+        ${candidateRankBadge(row.credibility_rank)}
+        <span class="badge">${esc(type)}</span>
+        ${row.status ? `<span class="badge">${esc(row.status)}</span>` : ""}
+      </div>
+      <div class="candidate-title">${title}</div>
+      <div class="review-meta">${esc(row.publisher || "発行元不明")} ／ 発見: ${esc(row.found_at || "不明")}</div>
+      ${row.confidence_reason ? `<div class="fact-note">${esc(row.confidence_reason)}</div>` : ""}
+      ${row.notes ? `<div class="fact-note">メモ: ${esc(row.notes)}</div>` : ""}
+    </div>`;
+}
+
+function queueCardHtml(row, { withSchoolLink } = {}) {
+  const schoolLink = withSchoolLink
+    ? `<button class="review-school-link" data-sid="${esc(row.school_id)}">${esc(row.school_name)}</button>`
+    : "";
+  return `
+    <div class="candidate-card">
+      <div class="review-top">
+        ${schoolLink}
+        <span class="badge test-queue-badge">調査待ち</span>
+        ${row.priority ? `<span class="badge">優先度 ${esc(row.priority)}</span>` : ""}
+        ${row.status ? `<span class="badge">${esc(row.status)}</span>` : ""}
+      </div>
+      <div class="candidate-title">${esc(row.next_action || "テスト情報を確認")}</div>
+      ${row.query_hint ? `<div class="fact-note">検索ヒント: ${esc(row.query_hint)}</div>` : ""}
+      <div class="review-meta">依頼: ${esc(row.requested_at || "不明")} ／ 最終確認: ${esc(row.last_checked || "未実施")}</div>
+    </div>`;
+}
+
+function matchingSchoolsHtml(q) {
+  if (!q) return "";
+  const terms = termsFromQuery(q);
+  const matches = state.data.schools
+    .filter((s) => terms.every((t) => [s.school_name, s.school_id, s.municipality].join(" ").includes(t)))
+    .slice(0, 8);
+  if (!matches.length) return '<p class="empty-note compact">学校リスト内の一致はまだありません。正式名称でも試せます。</p>';
+  return `
+    <div class="matched-schools">
+      ${matches.map((s) => `<button class="matched-school" data-sid="${esc(s.school_id)}">${esc(s.school_name)}</button>`).join("")}
+    </div>`;
+}
+
+function researchLinksHtml(q) {
+  if (!q) return '<p class="empty-note compact">学校名を入力すると、信頼度の高い順に調べる検索リンクを作ります。</p>';
+  const queries = [
+    ["公式・年間予定", `${q} 公式 年間行事 定期考査`],
+    ["シラバスPDF", `${q} シラバス 定期考査 filetype:pdf`],
+    ["定期テスト", `${q} 定期テスト 中学校`],
+    ["小テスト・課題", `${q} 小テスト 課題 中学校`],
+    ["説明会・塾情報", `${q} 定期テスト 説明会 塾`],
+    ["口コミ確認", `${q} 口コミ 定期テスト 小テスト 課題`],
+  ];
+  return `
+    <div class="test-link-grid">
+      ${queries.map(([label, query]) => `
+        <a href="https://www.google.com/search?q=${encodeURIComponent(query)}" target="_blank" rel="noopener noreferrer">
+          <span>${esc(label)}</span><small>${esc(query)}</small>
+        </a>`).join("")}
+    </div>`;
+}
+
+function renderTestSearch() {
+  if (!$("testSchoolQuery")) return;
+  const q = $("testSchoolQuery").value.trim();
+  const kind = $("filterTestKind").value;
+  const conf = $("filterTestConfidence").value;
+  const terms = termsFromQuery(q);
+
+  const info = (state.data.test_info || []).filter((row) => {
+    if (kind && row.test_kind !== kind) return false;
+    if (conf && (row.confidence || "").toUpperCase() !== conf) return false;
+    return rowMatchesTerms(row, terms);
+  });
+  const queue = (state.data.test_research_queue || []).filter((row) => rowMatchesTerms(row, terms));
+  const candidates = (state.data.test_source_candidates || []).filter((row) => {
+    if (conf && (row.credibility_rank || "").toUpperCase() !== conf) return false;
+    return rowMatchesTerms(row, terms);
+  });
+
+  $("testMatchedSchools").innerHTML = matchingSchoolsHtml(q);
+  $("testSearchLinks").innerHTML = researchLinksHtml(q);
+  $("testCount").textContent =
+    `登録済み ${info.length}件 ／ 調査待ち ${queue.length}件 ／ 候補出典 ${candidates.length}件`;
+  $("testInfoList").innerHTML = info.length
+    ? info.map((row) => testInfoCardHtml(row, { withSchoolLink: true })).join("")
+    : '<p class="empty-note">条件に合う登録済みテスト情報はまだありません。</p>';
+  $("testQueueList").innerHTML = queue.length
+    ? queue.map((row) => queueCardHtml(row, { withSchoolLink: true })).join("")
+    : '<p class="empty-note compact">この条件の調査待ちはありません。</p>';
+  $("testCandidateList").innerHTML = candidates.length
+    ? candidates.map((row) => candidateCardHtml(row, { withSchoolLink: true })).join("")
+    : '<p class="empty-note compact">この条件の候補出典はまだありません。</p>';
 }
 
 /* ---------- 学校詳細 ---------- */
@@ -458,6 +673,7 @@ function openSchool(sid) {
     </div>`;
 
   renderDetailReviews(sid);
+  renderDetailTests(sid);
   renderDetailFacts(sid);
   renderDetailSources(sid);
   renderDetailReport(sid);
@@ -500,6 +716,44 @@ function renderDetailReviews(sid) {
     ? sentimentSummaryHtml(reviews) + `<div class="review-list">${reviews.map((r) => reviewCardHtml(r)).join("")}</div>`
     : '<p class="empty-note">この学校の口コミ・SNS要約はまだ収集されていません（review_queue待ち）。</p>';
   $("tabReviews").innerHTML = head + body + deepdiveHtml(sid);
+}
+
+function renderDetailTests(sid) {
+  const school = state.data.schools.find((s) => s.school_id === sid);
+  const info = state.testInfoBySchool.get(sid) || [];
+  const queue = state.testQueueBySchool.get(sid) || [];
+  const candidates = state.testCandidatesBySchool.get(sid) || [];
+  const schoolName = school?.school_name || sid;
+  const infoHtml = info.length
+    ? `<div class="test-list">${info.map((row) => testInfoCardHtml(row)).join("")}</div>`
+    : '<p class="empty-note">この学校のテスト情報はまだ登録されていません。</p>';
+  const queueHtml = queue.length
+    ? `<div class="candidate-list">${queue.map((row) => queueCardHtml(row)).join("")}</div>`
+    : '<p class="empty-note compact">調査待ちはまだありません。</p>';
+  const candidateHtml = candidates.length
+    ? `<div class="candidate-list">${candidates.map((row) => candidateCardHtml(row)).join("")}</div>`
+    : '<p class="empty-note compact">候補出典はまだありません。</p>';
+  $("tabTests").innerHTML = `
+    <div class="notice-d" style="margin-bottom:12px">
+      <strong>定期テスト・小テスト情報</strong> — 公式資料や複数出典で確認できた内容を優先します。
+      口コミ・SNS由来の内容は雰囲気の参考として分けて扱います。
+    </div>
+    <div class="fact-group">
+      <h3>登録済みテスト情報</h3>
+      ${infoHtml}
+    </div>
+    <div class="fact-group">
+      <h3>この学校を調べる</h3>
+      <div class="test-search-box">${researchLinksHtml(schoolName)}</div>
+    </div>
+    <div class="fact-group">
+      <h3>調査待ち</h3>
+      ${queueHtml}
+    </div>
+    <div class="fact-group">
+      <h3>候補出典</h3>
+      ${candidateHtml}
+    </div>`;
 }
 
 function citationHtml(sourceId) {
@@ -764,10 +1018,15 @@ function renderMarkdown(text) {
 /* ---------- 画面切替・イベント ---------- */
 
 function showView(id) {
-  for (const v of ["viewSchools", "viewReviews", "viewSystem", "viewDetail"]) {
+  for (const v of ["viewSchools", "viewTests", "viewReviews", "viewSystem", "viewDetail"]) {
     $(v).hidden = v !== id;
   }
-  const modeMap = { viewSchools: "modeSchools", viewReviews: "modeReviews", viewSystem: "modeSystem" };
+  const modeMap = {
+    viewSchools: "modeSchools",
+    viewTests: "modeTests",
+    viewReviews: "modeReviews",
+    viewSystem: "modeSystem",
+  };
   for (const [view, btn] of Object.entries(modeMap)) {
     $(btn).classList.toggle("active", view === id);
   }
@@ -777,6 +1036,7 @@ function selectTab(name) {
   document.querySelectorAll("#detailTabs .tab-btn").forEach((b) =>
     b.classList.toggle("active", b.dataset.tab === name));
   $("tabReviews").hidden = name !== "reviews";
+  $("tabTests").hidden = name !== "tests";
   $("tabFacts").hidden = name !== "facts";
   $("tabSources").hidden = name !== "sources";
   $("tabReport").hidden = name !== "report";
@@ -784,6 +1044,7 @@ function selectTab(name) {
 
 function bindEvents() {
   $("modeSchools").addEventListener("click", () => showView("viewSchools"));
+  $("modeTests").addEventListener("click", () => { showView("viewTests"); renderTestSearch(); });
   $("modeReviews").addEventListener("click", () => { showView("viewReviews"); renderReviewSearch(); });
   $("modeSystem").addEventListener("click", () => showView("viewSystem"));
 
@@ -794,6 +1055,9 @@ function bindEvents() {
 
   $("reviewQuery").addEventListener("input", renderReviewSearch);
   $("filterReviewCategory").addEventListener("change", renderReviewSearch);
+  $("testSchoolQuery").addEventListener("input", renderTestSearch);
+  $("filterTestKind").addEventListener("change", renderTestSearch);
+  $("filterTestConfidence").addEventListener("change", renderTestSearch);
 
   $("schoolList").addEventListener("click", (e) => {
     const card = e.target.closest(".school-card");
@@ -802,6 +1066,12 @@ function bindEvents() {
   $("reviewList").addEventListener("click", (e) => {
     const link = e.target.closest(".review-school-link");
     if (link) openSchool(link.dataset.sid);
+  });
+  $("viewTests").addEventListener("click", (e) => {
+    const link = e.target.closest("[data-sid]");
+    if (link && (link.classList.contains("review-school-link") || link.classList.contains("matched-school"))) {
+      openSchool(link.dataset.sid);
+    }
   });
   $("backBtn").addEventListener("click", () => showView("viewSchools"));
   $("detailTabs").addEventListener("click", (e) => {

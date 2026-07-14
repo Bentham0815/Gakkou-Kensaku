@@ -16,6 +16,7 @@
     <p class="subtitle">保存済みデータのみ・読み取り専用</p>
     <nav class="mode-nav">
       <button id="modeSchools" class="mode-btn active">学校をさがす</button>
+      <button id="modeTests" class="mode-btn">テスト情報</button>
       <button id="modeReviews" class="mode-btn">口コミ横断検索</button>
       <button id="modeSystem" class="mode-btn">制度・全体データ</button>
     </nav>
@@ -50,6 +51,39 @@
     <div id="schoolList" class="school-list"></div>
   </section>
 
+  <!-- テスト情報検索 -->
+  <section id="viewTests" class="view" hidden>
+    <div class="review-intro notice-d">
+      定期テスト・小テスト情報は<strong>公式資料や複数出典で確認できた内容</strong>を優先します。
+      口コミ・SNS由来の内容は雰囲気の参考として分けて扱います。
+    </div>
+    <div class="filter-bar">
+      <input id="testSchoolQuery" type="search" placeholder="学校名でテスト情報を調べる（例: 小石川）" autocomplete="off">
+      <select id="filterTestKind">
+        <option value="">種類: すべて</option>
+        <option value="定期テスト">定期テスト</option>
+        <option value="小テスト">小テスト</option>
+        <option value="実力テスト">実力テスト</option>
+        <option value="課題テスト">課題テスト</option>
+      </select>
+      <select id="filterTestConfidence">
+        <option value="">信頼度: すべて</option>
+        <option value="A">公式確認</option>
+        <option value="B">確認済み</option>
+        <option value="C">複数参考</option>
+        <option value="D">雰囲気のみ</option>
+      </select>
+    </div>
+    <div id="testMatchedSchools"></div>
+    <div id="testSearchLinks" class="test-search-box"></div>
+    <p id="testCount" class="result-count"></p>
+    <div id="testInfoList" class="test-list"></div>
+    <h2 class="section-title test-section-title">調査待ち</h2>
+    <div id="testQueueList" class="candidate-list"></div>
+    <h2 class="section-title test-section-title">候補出典</h2>
+    <div id="testCandidateList" class="candidate-list"></div>
+  </section>
+
   <!-- 口コミ横断検索 -->
   <section id="viewReviews" class="view" hidden>
     <div class="review-intro notice-d">
@@ -76,11 +110,13 @@
     <div id="detailHead"></div>
     <nav class="tab-nav" id="detailTabs">
       <button data-tab="reviews" class="tab-btn active">口コミ・SNS</button>
+      <button data-tab="tests" class="tab-btn">テスト情報</button>
       <button data-tab="facts" class="tab-btn">基本情報・事実</button>
       <button data-tab="sources" class="tab-btn">出典一覧</button>
       <button data-tab="report" class="tab-btn">レポート表示</button>
     </nav>
     <div id="tabReviews" class="tab-body"></div>
+    <div id="tabTests" class="tab-body" hidden></div>
     <div id="tabFacts" class="tab-body" hidden></div>
     <div id="tabSources" class="tab-body" hidden></div>
     <div id="tabReport" class="tab-body" hidden></div>
